@@ -55,11 +55,12 @@ defmodule HologramSkeleton.MixProject do
       {:finch, "~> 0.13"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
-      {:gettext, "~> 0.26"},
+      {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:ash, "~> 3.0"},
+      {:ex_tempo, "== 0.21.0"},
       {:hologram, "== 0.10.1"}
     ]
   end
