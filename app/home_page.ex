@@ -6,7 +6,7 @@ defmodule HologramSkeleton.HomePage do
   layout HologramSkeleton.DefaultLayout
 
   def init(_params, component, _server) do
-    put_state(component, count: 0, server_value: "plain Hologram baseline")
+    put_state(component, count: 0, server_value: HologramSkeleton.ServerValue.load())
   end
 
   def template do
