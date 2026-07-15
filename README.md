@@ -10,16 +10,16 @@ Dependencies reachable only from `Hologram.Page.init/3` should not be included i
 
 ## Actual
 
-Changing the server helper from a plain custom `Ash.Type` to the Tempo-backed custom `Ash.Type` grows the unminified shared runtime from 356,796 bytes to 4,471,166 bytes, approximately 12.5 times larger.
+With the same dependencies and lockfile, changing the server helper from a plain custom `Ash.Type` to the Tempo-backed custom `Ash.Type` grows the unminified shared runtime from 374,340 bytes to 4,464,228 bytes, approximately 11.9 times larger.
 
 | Stage | Tag | Runtime bundle | Page bundle |
 | --- | --- | ---: | ---: |
-| Plain Hologram 0.10.1 | `baseline` | 356,796 bytes | 13,021 bytes |
-| Server-only plain Ash type | `ash-control` | 356,796 bytes | 13,021 bytes |
-| Tempo installed but unused | `tempo-dependency-control` | 356,796 bytes | 13,021 bytes |
-| Server-only Tempo-backed Ash type | `trigger` | 4,471,166 bytes | 21,377 bytes |
+| Tempo installed but unused | `tempo-dependency-control` | 374,340 bytes | 13,021 bytes |
+| Server-only Tempo-backed Ash type | `trigger` | 4,464,228 bytes | 21,377 bytes |
 
-The first three stages produce byte-for-byte identical JavaScript bundles. In the trigger build, the shared runtime contains Tempo, Calendrical, Localize, and protocol implementation modules such as every `Localize.Chars.*` implementation.
+These two tags have the same dependency declarations and lockfile. The only effective trigger is switching the server helper from `PlainText` to `TempoDuration`. In the trigger build, the shared runtime contains Tempo, Calendrical, Localize, and protocol implementation modules such as every `Localize.Chars.*` implementation.
+
+The earlier `baseline` and `ash-control` tags isolate plain Hologram and a server-only Ash type respectively.
 
 ## Reproduce
 
@@ -65,7 +65,8 @@ Open [http://localhost:4107](http://localhost:4107). The page displays the serve
 
 ## Environment used
 
-- macOS arm64
+- macOS 14.4.1 arm64
 - Erlang/OTP 28
 - Elixir 1.19.0
+- Node.js 22.19.0
 - Hologram 0.10.1
