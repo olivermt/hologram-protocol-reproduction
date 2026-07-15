@@ -1,56 +1,71 @@
+# Hologram protocol bundle reproduction
 
+This project reproduces shared client-runtime bundle growth in Hologram 0.10.1 when a server-only page initializer calls an Ash type backed by Tempo.
 
-# Hologram Skeleton
+The Tempo value is created and normalized on the server. The page receives only a plain string. No client action accepts, returns, or references a Tempo value.
 
-This repository contains a bare-bones skeleton application for the Hologram web framework, built on top of Phoenix. It provides a minimal starting point for:
+## Expected
 
-- Experimenting with Hologram
-- Reproducing issues for bug reports
-- Learning the basics of Hologram development
-- Creating new Hologram applications
+Dependencies reachable only from `Hologram.Page.init/3` should not be included in the shared browser runtime when the initialized component state contains only client-supported primitive values.
 
-## Getting Started
+## Actual
 
-To start your Hologram application:
+Changing the server helper from a plain custom `Ash.Type` to the Tempo-backed custom `Ash.Type` grows the unminified shared runtime from 356,796 bytes to 4,471,166 bytes, approximately 12.5 times larger.
 
-1. Clone this repository
-   ```bash
-   git clone https://github.com/bartblast/hologram_skeleton.git
-   cd hologram_skeleton
-   ```
+| Stage | Tag | Runtime bundle | Page bundle |
+| --- | --- | ---: | ---: |
+| Plain Hologram 0.10.1 | `baseline` | 356,796 bytes | 13,021 bytes |
+| Server-only plain Ash type | `ash-control` | 356,796 bytes | 13,021 bytes |
+| Tempo installed but unused | `tempo-dependency-control` | 356,796 bytes | 13,021 bytes |
+| Server-only Tempo-backed Ash type | `trigger` | 4,471,166 bytes | 21,377 bytes |
 
-2. Install dependencies
-   ```bash
-   mix setup
-   ```
+The first three stages produce byte-for-byte identical JavaScript bundles. In the trigger build, the shared runtime contains Tempo, Calendrical, Localize, and protocol implementation modules such as every `Localize.Chars.*` implementation.
 
-3. Start the Phoenix server
-   ```bash
-   mix phx.server
-   ```
+## Reproduce
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser to see the Hologram application running.
+The project uses Hologram `== 0.10.1`, Ash `3.27.7`, and ex_tempo `0.21.0` from Hex. It does not require a database.
 
-## File Organization
+Build and measure the dependency-only control:
 
-Hologram follows a convention of placing page and component files in the `app` directory. However, you can place your files in any directory that is compiled by the Elixir compiler, such as the `lib` directory.
-
-## Database Configuration
-
-To enable database functionality, uncomment the `HologramSkeleton.Repo` line in `lib/hologram_skeleton/application.ex`:
-
-```elixir
-children = [
-  HologramSkeletonWeb.Telemetry,
-  HologramSkeleton.Repo,  # Uncomment this line
-  # ...
-]
+```bash
+git switch tempo-dependency-control
+mix deps.get
+mix clean
+HOLOGRAM_START=1 mix compile --force
+wc -c priv/static/hologram/runtime-*.js priv/static/hologram/page-*.js
 ```
 
-## Learn More
+Build and measure the trigger:
 
-Visit the official Hologram website at [https://hologram.page](https://hologram.page) for comprehensive documentation and guides.
+```bash
+git switch trigger
+mix deps.get
+mix clean
+HOLOGRAM_START=1 mix compile --force
+wc -c priv/static/hologram/runtime-*.js priv/static/hologram/page-*.js
+```
 
-## License
+The first Hologram build also installs Hologram's compiler-side JavaScript dependencies.
 
-This project is licensed under the same license as Hologram itself.
+To run the trigger in a browser:
+
+```bash
+PORT=4107 mix holo
+```
+
+Open [http://localhost:4107](http://localhost:4107). The page displays the server-produced string and includes an unrelated client-side counter to demonstrate the intended boundary.
+
+## Relevant code
+
+`app/home_page.ex` calls `HologramSkeleton.ServerValue.load/0` only from `init/3` and stores the returned string. Its `action/3` callback only increments an integer.
+
+`lib/hologram_skeleton/server_value.ex` parses and formats the duration on the server. Switching this helper from `PlainText` to `TempoDuration` is the effective trigger.
+
+`lib/hologram_skeleton/types/tempo_duration.ex` is the representative application type. It implements `Ash.Type` callbacks for parsing, normalizing, dumping, atomic casting, and generation.
+
+## Environment used
+
+- macOS arm64
+- Erlang/OTP 28
+- Elixir 1.19.0
+- Hologram 0.10.1
