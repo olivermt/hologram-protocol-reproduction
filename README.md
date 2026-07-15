@@ -1,72 +1,64 @@
-# Hologram protocol bundle reproduction
+# Hologram Ash relationship reflection reproduction
 
-This project reproduces shared client-runtime bundle growth in Hologram 0.10.1 when a server-only page initializer calls an Ash type backed by Tempo.
+This branch reproduces page-bundle growth in raw Hologram `0.10.1` when server-only code references the root of an Ash resource relationship tree.
 
-The Tempo value is created and normalized on the server. The page receives only a plain string. No client action accepts, returns, or references a Tempo value.
+`HologramSkeleton.ServerAshPanel.init/3` calls `HologramSkeleton.Catalog.resource_summary/0`, which reads relationship names from the root `Product` resource and returns a plain string. The browser only receives that string. No template, client action, or client state requires the Ash resource structs, `__schema__`, or `__changeset__` functions.
+
+The resource graph is intentionally small but tree-shaped:
+
+```text
+Product
+├── Category ── Department
+├── Brand ── Supplier
+└── Variant ── Price
+```
 
 ## Expected
 
-Dependencies reachable only from `Hologram.Page.init/3` should not be included in the shared browser runtime when the initialized component state contains only client-supported primitive values.
+Referencing `Product` from server-only `init/3` should not pull the Ash resource reflection tree into the generated browser page bundle when the client receives only primitive state.
 
 ## Actual
 
-With the same dependencies and lockfile, changing the server helper from a plain custom `Ash.Type` to the Tempo-backed custom `Ash.Type` grows the unminified shared runtime from 374,340 bytes to 4,464,228 bytes, approximately 11.9 times larger.
+This branch uses Hex `hologram == 0.10.1`. The generated page bundle contains reflection functions for the root resource and its related resources, including `__changeset__/0`, `__schema__/1`, `__schema__/2`, `__struct__/0`, and `__struct__/1`.
 
-| Stage | Tag | Runtime bundle | Page bundle |
-| --- | --- | ---: | ---: |
-| Tempo installed but unused | `tempo-dependency-control` | 374,340 bytes | 13,021 bytes |
-| Server-only Tempo-backed Ash type | `trigger` | 4,464,228 bytes | 21,377 bytes |
+Measured locally:
 
-These two tags have the same dependency declarations and lockfile. The only effective trigger is switching the server helper from `PlainText` to `TempoDuration`. In the trigger build, the shared runtime contains Tempo, Calendrical, Localize, and protocol implementation modules such as every `Localize.Chars.*` implementation.
-
-The earlier `baseline` and `ash-control` tags isolate plain Hologram and a server-only Ash type respectively.
+| Hologram dep | Runtime bundle | Page bundle | Ash relationship tree in page JS |
+| --- | ---: | ---: | --- |
+| Hex `0.10.1` | 365,107 bytes | 117,101 bytes | yes |
 
 ## Reproduce
 
-The project uses Hologram `== 0.10.1`, Ash `3.27.7`, and ex_tempo `0.21.0` from Hex. It does not require a database.
-
-Build and measure the dependency-only control:
+Build and inspect the generated bundles:
 
 ```bash
-git switch tempo-dependency-control
+git switch ash-reflection-reproduction
 mix deps.get
 mix clean
 HOLOGRAM_START=1 mix compile --force
 wc -c priv/static/hologram/runtime-*.js priv/static/hologram/page-*.js
+rg "HologramSkeleton\\.Catalog\\.Product|__changeset__|__schema__" priv/static/hologram/page-*.js
 ```
 
-Build and measure the trigger:
+To see the relationship traversal, grep for all resource modules:
 
 ```bash
-git switch trigger
-mix deps.get
-mix clean
-HOLOGRAM_START=1 mix compile --force
-wc -c priv/static/hologram/runtime-*.js priv/static/hologram/page-*.js
+rg "HologramSkeleton\\.Catalog\\.(Product|Category|Department|Brand|Supplier|Variant|Price)" priv/static/hologram/page-*.js
 ```
-
-The first Hologram build also installs Hologram's compiler-side JavaScript dependencies.
-
-To run the trigger in a browser:
-
-```bash
-PORT=4107 mix holo
-```
-
-Open [http://localhost:4107](http://localhost:4107). The page displays the server-produced string and includes an unrelated client-side counter to demonstrate the intended boundary.
 
 ## Relevant code
 
-`app/home_page.ex` calls `HologramSkeleton.ServerValue.load/0` only from `init/3` and stores the returned string. Its `action/3` callback only increments an integer.
+`app/home_page.ex` renders `<ServerAshPanel />` and has an unrelated counter action to keep client behavior present.
 
-`lib/hologram_skeleton/server_value.ex` parses and formats the duration on the server. Switching this helper from `PlainText` to `TempoDuration` is the effective trigger.
+`app/server_ash_panel.ex` calls the Ash helper only from component `init/3` and stores only the returned string.
 
-`lib/hologram_skeleton/types/tempo_duration.ex` is the representative application type. It implements `Ash.Type` callbacks for parsing, normalizing, dumping, atomic casting, and generation.
+`lib/hologram_skeleton/catalog.ex` defines the minimal Ash domain and the server-only helper.
+
+`lib/hologram_skeleton/catalog/*.ex` defines the Ash resource relationship tree. The server helper starts at `Product`; the generated page bundle still contains reflection code for the related resources.
 
 ## Environment used
 
 - macOS 14.4.1 arm64
-- Erlang/OTP 28
-- Elixir 1.19.0
+- Erlang/OTP 29
+- Elixir 1.20.0
 - Node.js 22.19.0
-- Hologram 0.10.1

@@ -6,7 +6,7 @@ defmodule HologramSkeleton.DefaultLayout do
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Hologram protocol reproduction</title>
+        <title>Hologram Ash reflection reproduction</title>
         <Hologram.UI.Runtime />
       </head>
       <body>

@@ -9,6 +9,7 @@ import Config
 
 config :hologram_skeleton,
   ecto_repos: [HologramSkeleton.Repo],
+  ash_domains: [HologramSkeleton.Catalog],
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
